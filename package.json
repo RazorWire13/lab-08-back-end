@@ -1,33 +1,35 @@
 {
-  "name": "lab-07-back-end",
+  "name": "lab-08-back-end",
   "version": "1.0.0",
-  "description": "lab-07 backend",
+  "description": "Lab 8",
   "main": "server.js",
+  "dependencies": {
+    "cors": "^2.8.4",
+    "dotenv": "^6.0.0",
+    "express": "^4.16.3",
+    "pg": "^7.4.3",
+    "superagent": "^4.0.0-beta.5"
+  },
+  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Timinis/lab-07-back-end.git"
+    "url": "git+https://github.com/RazorWire13/lab-08-back-end.git"
   },
   "keywords": [
-    "back-end",
-    "darksky",
-    "yelp",
     "api",
-    "moviedb"
+    "google",
+    "yelp",
+    "moviedb",
+    "darksky"
   ],
-  "author": "Timothy Li, Dave Muench",
+  "author": "Dave Muench & Joey Eisenzimmer",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Timinis/lab-07-back-end/issues"
+    "url": "https://github.com/RazorWire13/lab-08-back-end/issues"
   },
-  "homepage": "https://github.com/Timinis/lab-07-back-end#readme",
-  "dependencies": {
-    "cors": "^2.8.4",
-    "dotenv": "^6.0.0",
-    "express": "^4.16.3",
-    "superagent": "^4.0.0-beta.5"
-  }
+  "homepage": "https://github.com/RazorWire13/lab-08-back-end#readme"
 }
