@@ -8,22 +8,21 @@ const pg = require('pg');
 const app = express();
 require('dotenv').config();
 
+// Setup DB by creating client instance, point it our DB and connect it
 const client = new pg.Client(process.env.DATABASE_URL); client.connect();
 
 client.on('error', err => console.error(err));
 
 app.use(cors());
 
+app.get('/location', getLocation);
+app.get('/weather', getWeather);
+app.get('/yelp', getYelp);
+app.get('/movies', getMovies);
 
 const PORT = process.env.PORT || 3000;
 
-app.get('/location', getLocation);
-
-app.get('/weather', getWeather);
-
-app.get('/yelp', getYelp);
-
-app.get('/movies', getMovies);
+app.listen(PORT, () => console.log(`Listening on ${PORT}`));
 
 function deleteByLocationId(table, city) {
   const SQL = `DELETE from ${table} WHERE location_id=${city};`;
@@ -37,6 +36,18 @@ function Location(query, result) {
   this.longitude = result.body.results[0].geometry.location.lng;
   this.created_at = Date.now();
 }
+
+Location.prototype = {
+  save: function () {
+    const SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
+    const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
+    return client.query(SQL, values)
+      .then(result => {
+        this.id = result.rows[0].id;
+        return this;
+      });
+  }
+};
 
 Location.lookupLocation = (location) => {
   const SQL = `SELECT * FROM locations WHERE search_query=$1;`;
@@ -53,41 +64,73 @@ Location.lookupLocation = (location) => {
     .catch(console.error);
 };
 
-Location.protoype = {
-  save: function () {
-    const SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
-    const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
-    return client.query(SQL, values)
-      .then(result => {
-        this.id = result.rows[0].id;
-        return this;
-      });
+
+
+function Weather(day) {
+  this.tableName = 'weathers';
+  this.time = new Date(day.time * 1000).toString().slice(0, 15);
+  this.forecast = day.summary;
+  this.created_at = Date.now();
+}
+
+Weather.prototype = {
+  save: function (location_id) {
+    const SQL = `INSERT INTO ${this.tableName} (forecast, time, location_id) VALUES ($1, $2, $3, $4);`;
+    const values = [this.forecast, this.time, this.created_at, location_id];
+    client.query(SQL, values);
   }
 };
+
+Weather.tableName = 'weathers';
+Weather.lookup = lookup;
+Weather.deleteByLocationId = deleteByLocationId;
+
+// Movies.tableName = 'movies';
+// Movies.lookup = lookup;
+// Movies.deleteByLocationId = deleteByLocationId;
+
+function lookup(options) {
+// Weather.lookup = (options) => {
+  const SQL = `SELECT * FROM ${options.tableName} WHERE location_id=$1;`;
+  const values = [options.location];
+
+  client.query(SQL, values)
+    .then(result => {
+      if (result.rowCount > 0) {
+        options.cacheHit(result.rows);
+      } else {
+        options.cacheMiss();
+      }
+    })
+    .catch(error => handleError(error));
+}
 
 function getLocation(request, response) {
   Location.lookupLocation({
     tableName: Location.tableName,
+
     query: request.query.data,
-    cacheHit: function (result) {
+
+    cacheHit: function(result) {
       response.send(result);
     },
 
-    cacheMiss: function () {
+    cacheMiss: function() {
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${
         request.query.data}&key=${process.env.GOOGLE_API_KEY}`;
-
       return superagent.get(url)
+
         .then(result => {
-          const location = new Location(this.query, result);
+          const location = new Location(request.query.data, result);
+          console.log(location);
+
 
           location.save()
             .then(location => response.send(location));
         })
-
         .catch(error => handleError(error));
     }
-  })
+  });
 }
 
 
@@ -95,7 +138,7 @@ function getWeather(request, response) {
   Weather.lookup({
     tableName: Weather.tableName,
 
-    cacheMiss: function () {
+    cacheMiss: function() {
       const url = `https://api.darksky.net/forecast/${
         process.env.DARK_SKY_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
 
@@ -155,41 +198,10 @@ function handleError(err, res) {
   if (res) res.status(500).send('Sorry, something went wrong');
 }
 
-function Weather(day) {
-  this.tableName = 'weathers';
-  this.time = new Date(day.time * 1000).toString().slice(0, 15);
-  this.forecast = day.summary;
-  this.created_at = Date.now();
-}
 
-Weather.prototype = {
-  save: function (location_id) {
-    const SQL = `INSERT INTO ${this.tableName} (forecast, time, location_id) VALUES ($1, $2, $3, $4);`;
-    const values = [this.forecast, this.time, this.created_at, location_id];
-    client.query(SQL, values);
-  }
-};
 
-Weather.tableName = 'weathers';
-Location.tableName = 'locations';
 
-Weather.lookup = (options) => {
-  const SQL = `SELECT * FROM ${options.tableName} WHERE location_id=$1;`;
-  const values = [options.location];
 
-  client.query(SQL, values)
-    .then(result => {
-      if (result.rowCount > 0) {
-        options.cacheHit(result.rows);
-      } else {
-        options.cacheMiss();
-      }
-    })
-    .catch(error => handleError(error));
-  };
-  
-  
-  
 function Yelp(food) {
   this.url = food.url;
   this.name = food.name;
@@ -207,6 +219,3 @@ function Movies(movies) {
   this.image_url = movies.poster_path;
   this.overview = movies.overview;
 }
-
-
-app.listen(PORT, () => console.log(`Listening on ${PORT}`));
